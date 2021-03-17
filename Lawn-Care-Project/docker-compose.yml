@@ -1,0 +1,107 @@
+version: '3.9'
+
+services:
+  lawn-care-mysql:
+    build:
+      context: lawn-care-producer/docker/mysql
+    container_name: lawn-care-mysql
+    cap_add:
+      - SYS_NICE
+    ports:
+      - 3307:3306
+    volumes:
+      - ./lawn-care-producer/docker/mysql/data:/var/lib/mysql
+    networks:
+      - lawn-care-network
+
+  lawn-care-producer:
+    build:
+      context: lawn-care-producer
+    restart: always
+    depends_on:
+      - lawn-care-mysql
+    expose:
+      - 8080
+    environment:
+      - DATABASE_HOST=lawn-care-mysql
+      - DATABASE_NAME=lawn-care
+      - DATABASE_USERNAME=jrosado
+      - DATABASE_PASSWORD=test
+      - RABBITMQ_HOST=lawn-care-rabbitmq
+      - RABBITMQ_USERNAME=jrosado
+      - RABBITMQ_PASSWORD=test
+      - RABBITMQ_QUEUE=neumont.queue
+      - RABBITMQ_EXCHANGE=neumont.exchange
+      - RABBITMQ_ROUTING_KEY=neumont.routingKey
+      - REDIS_HOST=lawn-care-redis
+      - REDIS_PASSWORD=test
+    networks:
+      - lawn-care-network
+
+  lawn-care-consumer:
+    build:
+      context: lawn-care-consumer
+    restart: always
+    container_name: lawn-care-consumer
+    depends_on:
+      - lawn-care-rabbitmq
+    ports:
+    - 8082:8080
+    environment:
+      - RABBITMQ_HOST=lawn-care-rabbitmq
+      - RABBITMQ_USERNAME=jrosado
+      - RABBITMQ_PASSWORD=test
+      - RABBITMQ_QUEUE=neumont.queue
+      - MAILHOG_HOST=lawn-care-mailhog
+    networks:
+      - lawn-care-network
+
+  lawn-care-balancer:
+    build:
+      context: lawn-care-producer/docker/nginx
+    container_name: lawn-care-balancer
+    depends_on:
+      - lawn-care-producer
+    ports:
+      - 9090:9090
+    networks:
+      - lawn-care-network
+
+  lawn-care-rabbitmq:
+    build:
+      context: lawn-care-producer/docker/rabbitmq
+    container_name: lawn-care-rabbitmq
+    hostname: lawn-care-rabbitmq
+    ports:
+      - 5672:5672
+      - 8081:15672
+    volumes:
+      - .\lawn-care-producer\docker\rabbitmq\data:/var/lib/rabbitmq/mnesia
+    networks:
+      - lawn-care-network
+
+  lawn-care-mailhog:
+    image: mailhog/mailhog
+    container_name: lawn-care-mailhog
+    logging:
+      driver: 'none'
+    ports:
+      - 1025:1025
+      - 8025:8025
+    networks:
+      - lawn-care-network
+
+  lawn-care-redis:
+    image: redis
+    command: redis-server --requirepass test
+    container_name: lawn-care-redis
+    volumes:
+      - ./lawn-care-producer/docker/redis/data:/data
+    ports:
+      - 6379:6379
+    networks:
+      - lawn-care-network
+
+networks:
+  lawn-care-network:
+    name: lawn-care-network

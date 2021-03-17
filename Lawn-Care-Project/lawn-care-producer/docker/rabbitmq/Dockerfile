@@ -1,0 +1,4 @@
+FROM rabbitmq:3.8.12-management
+
+ENV RABBITMQ_DEFAULT_USER=jrosado
+ENV RABBITMQ_DEFAULT_PASS=test
